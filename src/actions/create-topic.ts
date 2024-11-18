@@ -1,7 +1,12 @@
 "use server";
 
+import type { Topic } from "@prisma/client";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { z } from "zod";
+import { db } from "@/db";
+import paths from "@/paths";
+import { revalidatePath } from "next/cache";
 
 const createTopicSchema = z.object({
   name: z
@@ -45,6 +50,34 @@ export async function createTopic(
     };
   }
 
+  let topic: Topic;
+  try {
+    topic = await db.topic.create({
+      data: {
+        slug: result.data.name,
+        description: result.data.description,
+      },
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return {
+        errors: {
+          _form: [error.message],
+        },
+      };
+    } else {
+      return {
+        errors: {
+          _form: ["An unknown error occurred"],
+        },
+      };
+    }
+  }
+
+  revalidatePath("/");
+  redirect(paths.topicShow(topic.slug));
+
+  // 以下不會執行到了 在redirect後
   return {
     errors: {},
   };
