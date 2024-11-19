@@ -21,6 +21,7 @@ interface CreatePostFormState {
 }
 
 export async function createPost(
+  slug: string,
   formState: CreatePostFormState,
   formData: FormData
 ): Promise<CreatePostFormState> {
@@ -44,9 +45,48 @@ export async function createPost(
     };
   }
 
-  return {
-    errors: {},
-  };
+  const topic = await db.topic.findFirst({
+    where: {
+      slug,
+    },
+  });
+
+  if (!topic) {
+    return {
+      errors: {
+        _form: ["Topic not found"],
+      },
+    };
+  }
+
+  let post: Post;
+  try {
+    post = await db.post.create({
+      data: {
+        title: result.data.title,
+        content: result.data.content,
+        topicId: topic.id,
+        userId: session.user.id,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return {
+        errors: {
+          _form: [error.message],
+        },
+      };
+    } else {
+      return {
+        errors: {
+          _form: ["An unknown error occurred"],
+        },
+      };
+    }
+  }
+
+  revalidatePath(paths.topicShow(slug));
+  redirect(paths.postShow(slug, post.id));
 
   // TODO: revalidate the topic show page
 }
